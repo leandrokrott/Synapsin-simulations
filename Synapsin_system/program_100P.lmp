@@ -22,7 +22,6 @@ special_bonds   fene
 
 timestep        10
 reset_timestep  0
-#velocity       all create ${temperature} ${randomSeed}
 
 fix             fxnve   all     nve
 fix             fxlange all     langevin ${temperature} ${temperature} 10000.0 ${randomSeed}
