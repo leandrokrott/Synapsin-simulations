@@ -1,0 +1,106 @@
+# ---------- initializing the simulations  ----------------------------------------------------
+
+units		    lj
+atom_style	    atomic
+newton          on off
+dimension       3
+boundary        p p p
+#------------------------------------------------------------------------------------------
+
+
+
+
+#---------- variables ---------------------------------------------------------------------
+
+variable        run_NVT1 index 20000000
+variable        run_NVT2 index 10000000
+variable        T index 3.00
+variable        L index 24.0 #(adjust according to the desired density)
+#------------------------------------------------------------------------------------------
+
+
+
+
+
+#-------------Make cubic box --------------------------------------------------------------
+
+region          simbox block -${L} ${L} -${L} ${L} -${L} ${L}
+create_box      1 simbox
+create_atoms    1 random 5000 13529 NULL overlap 0.8 maxtry 200
+mass		    1 1.0
+
+velocity        all create ${T} 87287 rot yes dist gaussian
+
+#------------------------------------------------------------------------------------------
+
+
+
+
+# ---------- Atomic interaction -------------------------------------------
+
+pair_style      table bitmap 12
+pair_coeff      1 1 potential_protein_corrigido_4.5.table effective_interaction 4.5
+
+neighbor	    0.3 bin
+neigh_modify	every 1 delay 10 check yes
+
+#------------------------------------------------------------------------------------------
+
+
+
+#--------Equilibration----------------------------------------------------
+
+fix             lang all langevin ${T} ${T} 1.0 12345
+fix             nve all nve
+timestep        0.001
+
+thermo		    50
+run 		    ${run_NVT1}
+
+reset_timestep  0
+
+#-------------------------------------------------------------------------------------------
+
+
+#---------- g(r), dump, logs -----------------------------------------------------
+compute         myRDF1 all rdf 500
+fix             myRDF1 all ave/time 1 ${run_NVT2} ${run_NVT2} c_myRDF1[*] file rdf_L_${L}_T_${T}.dat mode vector
+
+log             log_L_${L}_T_${T}.dat
+dump            mydump all custom 2000 dump_L_${L}_T_${T}.lammpstrj id type x y z vx vy vz
+dump_modify     mydump sort id
+
+variable        Density equal density
+variable        Enthalpy equal enthalpy
+fix             2 all ave/time 1 ${run_NVT2} ${run_NVT2} c_thermo_temp c_thermo_press v_Density v_Enthalpy start ${run_NVT2} file log3_L_${L}_T_${T}.dat
+
+#------------------------------------------------------------------------------------------
+
+
+
+
+#----------------MSD----------------------------------------------
+variable        t equal time
+variable        msd equal c_MSD[4]
+compute		    msd all msd com yes
+fix             msd all ave/time 10 1 200 c_msd[*] file msd_L_${L}_T_${T}.dat mode scalar
+
+#------------------------------------------------------------------------------------------
+
+
+#-------Simulation--------------------------------------------------------------------------
+fix             lang all langevin ${T} ${T} 1.0 12345
+fix             nve all nve
+timestep        0.001
+
+thermo		    50
+run 		    ${run_NVT2}
+
+#------------------------------------------------------------------------------------------
+write_data      config_L_${L}.dat
+
+
+clear
+next L
+jump in.NVT_protein
+
