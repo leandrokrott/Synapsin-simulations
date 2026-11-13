@@ -1,0 +1,63 @@
+variable        temperature index 240.0
+variable        randomSeed  equal 876439
+variable        run_NVT1 index 20000000
+variable        run_NVT2 index 40000000
+
+
+units           real
+dimension       3
+boundary        p p p
+
+atom_style      full
+bond_style      harmonic
+
+include         C3_pre.in
+read_data       final_config_T_240.0.data
+include         C3_charges.in
+include         C3_coeffs.in
+
+neighbor        3.5 multi
+neigh_modify    every 20 delay 20 check yes
+special_bonds   fene
+
+timestep        10
+reset_timestep  0
+#velocity       all create ${temperature} ${randomSeed}
+
+fix             fxnve   all     nve
+fix             fxlange all     langevin ${temperature} ${temperature} 10000.0 ${randomSeed}
+
+compute         mypress all pressure thermo_temp
+variable        E_coul equal ecoul
+variable        PotEng equal pe
+variable        Press equal press
+variable        px equal c_mypress[1]
+variable        py equal c_mypress[2]
+variable        pz equal c_mypress[3]
+variable        ave equal ave(c_gyr)
+compute         gyr     all     gyration
+
+
+thermo          10000
+thermo_style    custom step pe ecoul ke temp press density c_gyr
+thermo_modify   flush yes
+
+run             ${run_NVT1}
+
+
+reset_timestep  0
+
+compute         mychunk all chunk/atom bin/1d z center 2.5 units box
+
+fix             print_densityprof all ave/chunk 100 100 10000 mychunk density/mass ave running overwrite file rho_prof_T_${temperature}.dat
+fix             print_rg_press all ave/time 100 100 10000 v_ave v_px v_py v_pz file Rg_pressures_T_${temperature}.dat
+dump            trajectory all custom 20000 dump_full_T_${temperature}.lammpstrj id type mass x y z
+dump_modify     trajectory sort id
+
+
+run             ${run_NVT2}
+
+
+clear
+next temperature
+jump program_100P.lmp

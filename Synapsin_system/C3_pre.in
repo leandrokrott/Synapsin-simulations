@@ -1,0 +1,15 @@
+# C3 IDP parameters
+
+variable mySaltStrength equal 0.15
+variable myPH equal 7.0
+
+variable chargeHis equal 1.0/(10^(${myPH}-6.0)+1)
+
+variable myDielectric equal 233.76+5321/${temperature}-0.9297*${temperature}+0.001417*${temperature}^2-8.292*10^(-7)*${temperature}^3
+
+dielectric ${myDielectric}
+
+variable myKappa equal 50.2898/(sqrt((${myDielectric}*${temperature})/${mySaltStrength}))
+
+# Define interaction style before reading data
+pair_style ljlambda ${myKappa} 0.0 40.0
