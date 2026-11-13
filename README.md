@@ -4,11 +4,11 @@ The repository is organized into three main directories, corresponding to differ
 
 ### 1. [Effective_Models](https://github.com/leandrokrott/Synapsin-simulations/tree/main/Effective_Models)
 
-Contains the LAMMPS input files, simulation configurations, and analysis scripts associated with the effective pair potentials derived from the two-protein Potential of Mean Force (PMF). Different analytical potential models are implemented and used to investigate the phase behavior and structural properties of Synapsin I systems through larger-scale simulations.
+Contains the LAMMPS input files, simulation configurations, and analysis scripts associated with the effective pair potentials derived from the two-protein Potential of Mean Force (PMF). Different analytical potential models (A and B) are implemented and used to investigate the phase behavior and structural properties of effective particles for Synapsin I systems through larger-scale simulations.
 
 ### 2. [PMF](https://github.com/leandrokrott/Synapsin-simulations/tree/main/PMF)
 
-Contains the input files, molecular configurations, and simulation scripts used to perform two-protein simulations with CALVADOS 3.0. Umbrella sampling is employed to calculate the Potential of Mean Force (PMF) as a function of the center-of-mass separation between two Synapsin I protein chains. The resulting PMF provides the reference effective interaction profile used to parameterize the analytical pair potentials.
+Contains the input files, molecular configurations, and simulation scripts used to perform two-protein simulations with CALVADOS 3.0. Umbrella sampling is employed to calculate the Potential of Mean Force (PMF) as a function of the center-of-mass separation between the ordered domain of two Synapsin I protein chains. The resulting PMF provides the reference effective interaction profile used to parameterize the analytical pair potentials.
 
 ### 3. [Synapsin_system](https://github.com/leandrokrott/Synapsin-simulations/tree/main/Synapsin_system)
 
