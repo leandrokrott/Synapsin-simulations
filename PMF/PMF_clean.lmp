@@ -1,0 +1,133 @@
+variable        temperature index 293.15
+variable        randomSeed  equal 876439
+variable        run_NVT1 index 5000000
+variable        run_NVT2 index 5000000
+
+units           real
+dimension       3
+boundary        p p p
+
+atom_style      full
+bond_style      harmonic
+
+read_data       modified_C3_synapsin.dat
+include         C3_mixed_slim_par.dat
+
+# Definir os grupos de partículas (as duas proteínas)
+group           particle1 id <> 113 420
+group           particle2 id <> 819 1126
+group           proteina1 id <> 1 705
+group           proteina2 id <> 706 1410
+
+# Parâmetros de vizinhança
+neighbor        3.5 multi
+neigh_modify    every 20 delay 20 check yes
+
+# Definir os tipos de ligações e interações especiais
+special_bonds   fene
+
+# Minimização de energia para equilibrar a estrutura
+min_style       fire
+timestep        0.0000001
+minimize        0.0 1.0e-8 1000 100000
+timestep        0.00001
+minimize        0.0 1.0e-8 1000 100000
+timestep        0.1
+minimize        0.0 1.0e-8 1000 100000
+timestep        10
+minimize        0.0 1.0e-8 1000 10000
+
+# Inicialização
+timestep        10
+reset_timestep  0
+velocity        all create ${temperature} ${randomSeed}
+
+# Fixações para a dinâmica
+fix             fxnve   all     nve
+fix             fxlange all     langevin ${temperature} ${temperature} 10000.0 ${randomSeed}
+fix             fxcom   all     recenter 0 0 0
+
+thermo          10000
+thermo_style    custom step pe ecoul ke temp press lx ly lz xlo xhi ylo yhi zlo zhi
+run             ${run_NVT1}
+
+
+
+# Cálculo dos centros de massa das duas proteínas
+compute         com1 particle1 com
+compute         com2 particle2 com
+compute         p1p2 proteina1 pe/mol/tally proteina2
+
+
+# Executar uma simulação curta para atualizar os valores dos computes
+run             0      # Atualiza os computes, sem execução da simulação
+
+reset_timestep  0
+
+# Esquema que corrige as condições periódicas de contorno na hora de determinar o COM
+variable        COM1_x equal "c_com1[1] - floor((c_com1[1] - xlo)/lx) * lx"
+variable        COM1_y equal "c_com1[2] - floor((c_com1[2] - ylo)/ly) * ly"
+variable        COM1_z equal "c_com1[3] - floor((c_com1[3] - zlo)/lz) * lz"
+variable        COM2_x equal "c_com2[1] - floor((c_com2[1] - xlo)/lx) * lx"
+variable        COM2_y equal "c_com2[2] - floor((c_com2[2] - ylo)/ly) * ly"
+variable        COM2_z equal "c_com2[3] - floor((c_com2[3] - zlo)/lz) * lz"
+
+# evdwl and ecoul for intramolecular pairs and evdwl and ecoul for intermolecular pairs
+variable         p1p2_1 equal "c_p1p2[1]"
+variable         p1p2_2 equal "c_p1p2[2]"
+variable         p1p2_3 equal "c_p1p2[3]"
+variable         p1p2_4 equal "c_p1p2[4]"
+
+
+# Calculando a distância entre os centros de massa com a correção das PBC
+variable        dist_x_c equal v_COM1_x-v_COM2_x # Diferença no eixo x
+variable        dist_y_c equal v_COM1_y-v_COM2_y  # Diferença no eixo y
+variable        dist_z_c equal v_COM1_z-v_COM2_z  # Diferença no eixo z
+
+# Aplicar correção PBC em cada eixo
+variable        dist_x_pbc equal "v_dist_x_c - round(v_dist_x_c/lx)*lx"
+variable        dist_y_pbc equal "v_dist_y_c - round(v_dist_y_c/ly)*ly"
+variable        dist_z_pbc equal "v_dist_z_c - round(v_dist_z_c/lz)*lz"
+
+# Calculando a distância total entre os centros de massa (coordenada de reação)
+variable        reactionCoord_c equal "sqrt(v_dist_x_pbc^2 + v_dist_y_pbc^2 + v_dist_z_pbc^2)"
+
+dump            trajectory all custom 100000 dump_full_T_${temperature}.lammpstrj mol id type mass x y z
+
+
+# Definindo a lista de valores para a coordenada de reação z0 para o umbrella sampling e a constante elastica
+variable        z0_values file z0_values.txt
+variable        k equal 2.                   # Constante de força para a restrição
+
+# Início do loop
+label           loop
+
+# Usar o próximo valor de z0 na lista de valores de umbrella sampling
+variable        z0 equal ${z0_values}
+
+
+# Aplicar a força restauradora com o valor atual de z0
+fix             umbrella_force particle1 spring couple particle2 ${k} 0.0 0.0 0.0 ${z0}
+
+run             ${run_NVT2} #equilibrate
+
+# Coletando a coordenada de reação em cada intervalo de tempo
+fix             myat1 all ave/time 10 10 1000 v_reactionCoord_c v_z0 file position.${z0_values}.dat
+
+# Coletando a coordenada de reação em cada intervalo de tempo
+fix             energies_ec_evdw all ave/time 1 ${run_NVT2} ${run_NVT2} c_p1p2[3] c_p1p2[4] v_reactionCoord_c file RC_energies_z0_${z0_values}.dat
+#fix             CenterMass all ave/time 1 ${run_NVT1} ${run_NVT1} c_com1[1] c_com1[2] c_com1[3] c_com2[1] c_com2[2] c_com2[3] v_reactionCoord_c file CenterMass_z0_${z0_values}.dat
+
+# Rodando a simulação para o intervalo de Umbrella Sampling atual
+run             ${run_NVT2}
+
+# Limpar a coleta de dados
+unfix           myat1
+unfix           energies_ec_evdw
+#unfix           CenterMass
+
+# Passar para o próximo valor de z0
+next            z0_values
+jump            SELF loop
+
+# Fim do loop
